@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>REDLINE: ULTIMATE OVERDRIVE</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
+        :root { --main: #ff3e3e; --alt: #ffcc00; --shield: #00d2ff; --bg: #020205; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: var(--bg); font-family: 'Orbitron'; color: white; touch-action: none; }
+        canvas { display: block; width: 100vw; height: 100vh; position: absolute; top:0; left:0; }
+        
+        .overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.85); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; padding: 20px; backdrop-filter: blur(8px); }
+        .hidden { display: none !important; }
+        .panel { background: rgba(10, 10, 25, 0.98); border: 2px solid var(--main); padding: 25px; width: 100%; max-width: 360px; text-align: center; border-radius: 25px; box-shadow: 0 0 50px rgba(255, 62, 62, 0.3); border-top: 8px solid var(--main); }
+        
+        .btn { background: transparent; color: white; border: 2px solid var(--main); padding: 15px; width: 100%; margin: 10px 0; font-family: 'Orbitron'; font-weight: 700; border-radius: 15px; font-size: 14px; text-transform: uppercase; transition: 0.1s; box-shadow: 0 4px 0 var(--main); position: relative; top: 0; }
+        .btn:active { top: 4px; box-shadow: 0 0 0 var(--main); background: var(--main); color: black; }
+        
+        #hud { position: absolute; top: 0; left: 0; width: 100%; padding: 20px; display: flex; justify-content: space-between; pointer-events: none; z-index: 10; text-shadow: 0 0 10px black; }
+        .bar-bg { width: 120px; height: 12px; background: rgba(255,255,255,0.1); border-radius: 6px; overflow: hidden; margin-top: 5px; border: 1px solid rgba(255,255,255,0.3); }
+        .bar-fill { height: 100%; width: 100%; transition: 0.3s; }
+        
+        #btn-nova { 
+            position: absolute; bottom: 40px; right: 30px; width: 90px; height: 90px; 
+            border-radius: 50%; border: 4px solid cyan; background: radial-gradient(circle, rgba(0, 255, 255, 0.2), transparent);
+            display: flex; align-items: center; justify-content: center; font-weight: 900;
+            color: cyan; z-index: 100; opacity: 0.2; transition: 0.3s;
+        }
+        #btn-nova.ready { opacity: 1; box-shadow: 0 0 30px cyan; transform: scale(1.1); animation: pulse 0.8s infinite alternate; }
+        @keyframes pulse { from { transform: scale(1); } to { transform: scale(1.15); } }
+
+        #leaderboard { margin-top: 20px; font-size: 11px; text-align: left; border-top: 1px solid #333; padding-top: 10px; }
+        .score-row { display: flex; justify-content: space-between; margin-bottom: 5px; color: #ccc; }
+        #msg-alert { position: absolute; top: 30%; width: 100%; text-align: center; font-size: 32px; font-weight: 900; color: var(--alt); pointer-events: none; z-index: 2000; display: none; text-shadow: 0 0 20px orange; }
+        input { background: #000; border: 2px solid var(--main); color: white; padding: 15px; width: 100%; font-family: 'Orbitron'; margin-bottom: 15px; text-align: center; border-radius: 15px; font-size: 16px; }
+    </style>
+</head>
+<body>
+
+<div id="m-login" class="overlay">
+    <div class="panel">
+        <h2 style="color:var(--main)">IDENTIFICATION</h2>
+        <input type="text" id="inp-pseudo" placeholder="NOM DU PILOTE..." maxlength="12">
+        <button class="btn" onclick="UI.savePseudo()">INITIALISER</button>
+    </div>
+</div>
+
+<div id="m-main" class="overlay hidden">
+    <h1 style="color:var(--main); letter-spacing:8px; font-weight:900; text-shadow: 0 0 20px rgba(255,0,0,0.5);">REDLINE</h1>
+    <div class="panel">
+        <div id="display-pseudo" style="color:var(--alt); margin-bottom:15px; font-size:13px; font-weight:700"></div>
+        <button class="btn" onclick="Game.start()">COMBAT</button>
+        <button class="btn" style="border-color:var(--alt); color:var(--alt); box-shadow: 0 4px 0 var(--alt);" onclick="UI.showShop()">GARAGE</button>
+        <div id="leaderboard"><div id="leaderboard-list"></div></div>
+        <div style="margin-top:15px; font-size:12px;">CREDITS: <span id="main-coins" style="color:var(--alt)">0</span></div>
+    </div>
+</div>
+
+<div id="m-shop" class="overlay hidden">
+    <div class="panel" style="max-height: 80vh; overflow-y: auto;">
+        <h2 style="color:var(--alt)">PERSONNALISATION</h2>
+        <div id="shop-container"></div>
+        <button class="btn" onclick="UI.hideShop()">OK</button>
+    </div>
+</div>
+
+<div id="hud" class="hidden">
+    <div>
+        <div id="lvl-display" style="color:var(--alt); font-weight:900; font-size:14px;">SECTEUR 1</div>
+        <div class="bar-bg"><div id="hp-fill" class="bar-fill" style="background:var(--main)"></div></div>
+    </div>
+    <div style="text-align:right">
+        <div id="h-score" style="font-size:22px; font-weight:900;">0</div>
+    </div>
+</div>
+
+<div id="btn-nova" class="hidden" onpointerdown="Game.useSpecial()">NOVA</div>
+<div id="msg-alert"></div>
+<canvas id="c"></canvas>
+
+<script>
+const Settings = {
+    pseudo: localStorage.getItem('rlu_pseudo') || '',
+    scores: JSON.parse(localStorage.getItem('rlu_scores')) || [],
+    init() { if(this.pseudo) { UI.hide('m-login'); UI.show('m-main'); this.updateMenu(); } },
+    updateMenu() {
+        document.getElementById('display-pseudo').innerText = "PILOTE : " + this.pseudo.toUpperCase();
+        document.getElementById('main-coins').innerText = Shop.coins;
+        const list = document.getElementById('leaderboard-list');
+        list.innerHTML = this.scores.map((s,i) => `<div class="score-row"><span>${i+1}. ${s.n}</span><span>${Math.floor(s.s)}</span></div>`).join('');
+    },
+    saveScore(score) {
+        this.scores.push({n: this.pseudo, s: score});
+        this.scores.sort((a,b) => b.s - a.s);
+        this.scores = this.scores.slice(0,5);
+        localStorage.setItem('rlu_scores', JSON.stringify(this.scores));
+    }
+};
+
+const Shop = {
+    coins: parseInt(localStorage.getItem('rlu_coins')) || 0,
+    owned: JSON.parse(localStorage.getItem('rlu_owned')) || ['c_red', 's_delta'],
+    equip: JSON.parse(localStorage.getItem('rlu_equip')) || { c: '#ff3e3e', s: 'delta' },
+    items: [
+        { id: 'c_red', name: 'NEON ROUGE', type: 'color', val: '#ff3e3e', cost: 0 },
+        { id: 'c_blue', name: 'NEON BLEU', type: 'color', val: '#00d2ff', cost: 500 },
+        { id: 'c_gold', name: 'NEON OR', type: 'color', val: '#ffcc00', cost: 2000 },
+        { id: 's_delta', name: 'DELTA WING', type: 'shape', val: 'delta', cost: 0 },
+        { id: 's_titan', name: 'TITAN HEAVY', type: 'shape', val: 'titan', cost: 1500 },
+        { id: 's_wraith', name: 'WRAITH X', type: 'shape', val: 'wraith', cost: 4000 }
+    ],
+    render() {
+        const container = document.getElementById('shop-container'); container.innerHTML = '';
+        this.items.forEach(it => {
+            const own = this.owned.includes(it.id), active = (it.type === 'color' && this.equip.c === it.val) || (it.type === 'shape' && this.equip.s === it.val);
+            const div = document.createElement('div'); div.style.marginBottom = "15px";
+            div.innerHTML = `<div style="font-size:10px; color:${it.type==='color'?it.val:'#fff'}">${it.name}</div><button class="btn" style="padding:10px; margin:0" onclick="Shop.buy('${it.id}')">${active ? 'ACTIF' : (own ? 'ÉQUIPER' : it.cost + ' C')}</button>`;
+            container.appendChild(div);
+        });
+    },
+    buy(id) {
+        const it = this.items.find(x => x.id === id);
+        if(this.owned.includes(id)) { if(it.type === 'color') this.equip.c = it.val; else this.equip.s = it.val; }
+        else if(this.coins >= it.cost) { this.coins -= it.cost; this.owned.push(id); }
+        localStorage.setItem('rlu_coins', this.coins); localStorage.setItem('rlu_owned', JSON.stringify(this.owned)); localStorage.setItem('rlu_equip', JSON.stringify(this.equip));
+        this.render();
+    }
+};
+
+const Game = {
+    active: false, frame: 0, score: 0, hp: 100, sp: 0, level: 1,
+    w: 0, h: 0, player: { x: 0, y: 0, tx: 0, ty: 0 },
+    enemies: [], bullets: [], stars: [], clouds: [], nova: null,
+    nebulaColors: ['rgba(50, 0, 100, 0.2)', 'rgba(0, 50, 100, 0.2)', 'rgba(100, 0, 50, 0.2)', 'rgba(0, 100, 50, 0.2)'],
+
+    init() {
+        this.canvas = document.getElementById('c'); this.ctx = this.canvas.getContext('2d');
+        this.w = this.canvas.width = window.innerWidth; this.h = this.canvas.height = window.innerHeight;
+        for(let i=0; i<40; i++) this.stars.push({x: Math.random()*this.w, y: Math.random()*this.h, s: Math.random()*3+1});
+        for(let i=0; i<3; i++) this.clouds.push({x: Math.random()*this.w, y: Math.random()*this.h, r: 250+Math.random()*200, v: 0.5+Math.random()});
+        Settings.init();
+    },
+
+    start() {
+        this.active = true; this.hp = 100; this.score = 0; this.sp = 0; this.level = 1; this.enemies = []; this.bullets = [];
+        UI.hide('m-main'); UI.show('hud'); UI.show('btn-nova'); this.loop();
+    },
+
+    vib(ms) { if(navigator.vibrate) navigator.vibrate(ms); },
+
+    useSpecial() {
+        if(this.sp >= 100) { 
+            this.sp = 0; this.nova = { x: this.player.x, y: this.player.y, r: 0 }; 
+            this.alert("OVERDRIVE !"); this.vib(300);
+        }
+    },
+
+    update() {
+        if(!this.active) return;
+        this.frame++; this.score += (0.2 * this.level);
+        this.player.x += (this.player.tx - this.player.x) * 0.15;
+        this.player.y += (this.player.ty - this.player.y) * 0.15;
+
+        // Level Up System
+        if(this.score > this.level * 500) {
+            this.level++;
+            this.alert("SECTEUR " + this.level);
+            this.vib([100, 100, 100]);
+            document.getElementById('lvl-display').innerText = "SECTEUR " + this.level;
+        }
+
+        if(this.frame % Math.max(4, 8 - this.level) === 0) this.bullets.push({x:this.player.x, y:this.player.y-20, vy:-15});
+        if(this.sp < 100) this.sp += 0.4;
+        document.getElementById('btn-nova').className = this.sp >= 100 ? 'ready' : '';
+
+        if(this.nova) {
+            this.nova.r += 25;
+            this.enemies.forEach((e, i) => { if(Math.hypot(this.nova.x-e.x, this.nova.y-e.y) < this.nova.r) { this.enemies.splice(i,1); Shop.coins+=10; }});
+            if(this.nova.r > this.w * 1.5) this.nova = null;
+        }
+
+        let spawnRate = Math.max(20, 50 - (this.level * 5));
+        if(this.frame % spawnRate === 0) this.enemies.push({ x: Math.random()*this.w, y: -50, s: 3 + this.level + Math.random()*2, r: 20 });
+        
+        this.enemies.forEach((e, i) => { 
+            e.y += e.s; 
+            if(Math.hypot(this.player.x-e.x, this.player.y-e.y) < 35) { 
+                this.hp -= 25; this.enemies.splice(i,1); this.vib(70);
+                if(this.hp<=0) this.gameOver(); 
+            }
+            if(e.y > this.h + 50) this.enemies.splice(i,1);
+        });
+
+        this.bullets.forEach((b, i) => {
+            b.y += b.vy;
+            this.enemies.forEach((e, j) => {
+                if(Math.hypot(b.x-e.x, b.y-e.y) < e.r) { this.enemies.splice(j,1); this.bullets.splice(i,1); Shop.coins += (1 * this.level); }
+            });
+            if(b.y < -50) this.bullets.splice(i,1);
+        });
+
+        this.stars.forEach(s => { s.y += s.s * (1 + this.level*0.1); if(s.y > this.h) s.y = 0; });
+        this.clouds.forEach(c => { c.y += c.v; if(c.y - c.r > this.h) { c.y = -c.r; c.x = Math.random()*this.w; }});
+
+        document.getElementById('hp-fill').style.width = this.hp + '%';
+        document.getElementById('h-score').innerText = Math.floor(this.score);
+    },
+
+    draw() {
+        const ctx = this.ctx;
+        ctx.fillStyle = '#020208'; ctx.fillRect(0,0,this.w,this.h);
+        
+        // Nebula
+        this.clouds.forEach(c => {
+            let grad = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, c.r);
+            grad.addColorStop(0, this.nebulaColors[(this.level-1) % 4]);
+            grad.addColorStop(1, 'transparent');
+            ctx.fillStyle = grad;
+            ctx.beginPath(); ctx.arc(c.x, c.y, c.r, 0, 7); ctx.fill();
+        });
+
+        ctx.fillStyle = "white"; this.stars.forEach(s => ctx.fillRect(s.x, s.y, s.s, s.s));
+        
+        if(this.nova) {
+            ctx.beginPath(); ctx.arc(this.nova.x, this.nova.y, this.nova.r, 0, 7);
+            ctx.strokeStyle='rgba(0, 255, 255, 0.4)'; ctx.lineWidth=15; ctx.stroke();
+        }
+
+        const px = this.player.x, py = this.player.y;
+        ctx.strokeStyle = Shop.equip.c; ctx.lineWidth = 4; ctx.shadowBlur = 15; ctx.shadowColor = Shop.equip.c;
+        ctx.beginPath();
+        if(Shop.equip.s === 'delta') { ctx.moveTo(px, py-22); ctx.lineTo(px-18, py+15); ctx.lineTo(px+18, py+15); }
+        else if(Shop.equip.s === 'titan') { ctx.rect(px-15, py-15, 30, 30); ctx.strokeRect(px-25, py, 10, 10); ctx.strokeRect(px+15, py, 10, 10); }
+        else { ctx.moveTo(px, py-25); ctx.lineTo(px-15, py+20); ctx.lineTo(px, py+8); ctx.lineTo(px+15, py+20); }
+        ctx.closePath(); ctx.stroke(); ctx.shadowBlur = 0;
+
+        ctx.fillStyle = Shop.equip.c; this.bullets.forEach(b => ctx.fillRect(b.x-2, b.y, 4, 20));
+        ctx.strokeStyle = 'white'; ctx.lineWidth = 2; this.enemies.forEach(e => {
+            ctx.save(); ctx.translate(e.x, e.y); ctx.rotate(this.frame*0.05); ctx.strokeRect(-12, -12, 24, 24); ctx.restore();
+        });
+    },
+
+    alert(t) { const el = document.getElementById('msg-alert'); el.innerText = t; el.style.display='block'; setTimeout(()=>el.style.display='none', 2000); },
+    gameOver() { 
+        this.active = false; this.vib([100, 50, 100, 50, 500]);
+        Settings.saveScore(this.score); localStorage.setItem('rlu_coins', Shop.coins); 
+        alert("TERMINUS\nSCORE: "+Math.floor(this.score)); location.reload(); 
+    },
+    loop() { if(!this.active) return; this.update(); this.draw(); requestAnimationFrame(()=>this.loop()); }
+};
+
+const UI = {
+    show(id) { document.getElementById(id).classList.remove('hidden'); }, hide(id) { document.getElementById(id).classList.add('hidden'); },
+    savePseudo() { const p = document.getElementById('inp-pseudo').value; if(p.length > 1) { Settings.pseudo = p; localStorage.setItem('rlu_pseudo', p); this.hide('m-login'); this.show('m-main'); Settings.updateMenu(); } },
+    showShop() { Shop.render(); this.show('m-shop'); this.hide('m-main'); }, hideShop() { this.hide('m-shop'); this.show('m-main'); Settings.updateMenu(); }
+};
+
+window.addEventListener('pointermove', e => { if(Game.active) { Game.player.tx = e.clientX; Game.player.ty = e.clientY - 65; }});
+Game.init();
+</script>
+</body>
+</html>
